@@ -1,0 +1,91 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Nov 12 16:30:54 2023
+
+@author: 28320
+"""
+
+
+
+import sys
+import requests  
+ty=sys.getfilesystemencoding()  
+ 
+## 1. 基本参数设置：
+
+ 
+lat_1 = 39.705647 # 北京市左下纬度
+lon_1 = 116.724497 # 北京市左下经度
+lat_2 = 40.021106 # 北京市右上纬度
+lon_2 = 116.208223 # 北京市右上经度
+ 
+las = 0.01  # 爬取时划分网格的经纬度间隔
+ak='xxxxxxxx' # 根据自己在百度地图注册平台上申请的AK
+place = r'餐饮' # 爬取的POI类型，可以是学校、政府、超市、商场、小区、餐饮店等等，这里以餐饮为例
+ 
+ 
+## 2. POI区域划分，按照经纬度间隔0.01度，将不同URL存入一个列表中
+ 
+print ('*******************{}POI开始获取****************'.format(place))
+urls=[] #声明一个数组列表
+lat_count=int((lat_2-lat_1)/las+1)
+lon_count=int((lon_2-lon_1)/las+1)
+for lat_c in range(0,lat_count):
+    lat_b1=lat_1+las*lat_c
+    for lon_c in range(0,lon_count):
+        lon_b1=lon_1+las*lon_c
+        for i in range(0,20):
+            page_num=str(i)
+            url='http://api.map.baidu.com/place/v2/search?query='+place+'& bounds='+str(lat_b1)+','+str(lon_b1)+','+str(lat_b1+las)+','+str(lon_b1+las)+'&page_size=20&page_num='+str(page_num)+'&output=json&ak='+ak
+            urls.append(url)
+print ('url列表读取完成')
+ 
+ 
+## 3. 为了方便看结果，这里设置了些参数
+ 
+total_before = 0 
+total = 0 # 获取总条数
+label = 0 # 查看是否获取到数据的标志
+count_20 = 0 # 查看每页超过20条的页数
+K = 0 # 运行出错的断点数,代表第多少次循环
+ 
+urls = urls[K:] # 防止出现意外，比如在百度地图获取的数据达到上限，就会终止服务，这里的K主要是为了从当前断点处继续爬取，所以需要根据自己程序终止断点设置;
+count_xunhuan = len(urls) # 循环次数
+count_xunhuan2 = count_xunhuan # 还剩循环次数，主要让自己知道大概有多少循环，每次都打印下，对程序运行时间有个大致了解;
+ 
+ 
+# 4. 创建文件以及将爬取到的数据读入文件
+ 
+f=open(r''+place+'.csv','a',encoding='utf-8') # 根据爬取的POI类型创建文件
+print("+++++++++++爬取需循环{}次++++++++++++".format(count_xunhuan))
+for url in urls:
+    #time.sleep(10) # 为了防止并发量报警，设置了一个10秒的休眠。认证后就不需要了
+    html = requests.get(url) # 获取网页信息
+    data = html.json() # 获取网页信息的json格式数据
+    total_before = total
+    for item in data['results']: 
+        jname = item['name'] # 获取名称
+        jlat = item['location']['lat'] # 获取纬度
+        jlon = item['location']['lng'] # 获取经度
+        jadd = item['address'] # 获取详细地址
+        jpro = item['province'] # 获取所在省
+        jcity = item['city'] # 获取所在城市
+        jarea = item['area'] # 获取所在区或县
+        j_str = jname + ',' + str(jlat) + ',' + str(jlon) + ',' + jadd + ',' + jpro + ',' + jcity + ',' + jarea + '\n' # 以逗号格式，将数据存入一个字符串
+        f.write(j_str) # 将数据以行的形式写入CSV文件中
+        total = total + 1 # 获取的数据记录数
+        label = 1 # 表示每个小网格是否爬取到数据，如果为1，则表示获取到数据，执行下面的if语句，如果为0，则表示没有获取到数据;
+    count_xunhuan2 = count_xunhuan2 - 1 # 循环次数减一，方便查看了解循环进度
+    if label == 1:
+        print("需循环{}次, 已循环{}次, 还剩{}次循环结束".format(count_xunhuan, count_xunhuan-count_xunhuan2, count_xunhuan2))
+        print('新增{}条数据'.format(total-total_before))
+        if total-total_before == 20:
+                count_20 = count_20 + 1 # 查看获取到20条数据的页数，因为百度地图限制每页获取20条数据，如果该网格区域超过的话，也是爬取到20条，所以这里设置count_20查看下没有爬取完整的网格数，如果过多，则最好修改las经纬度间隔；
+        print("---------已获取{}条数据----------".format(total))
+    label = 0
+print("每页新增超过20条的页数:{}".format(count_20))
+f.close()
+print ('*****************{}POI获取完成******************'.format(place))
+
+#reference：https://blog.csdn.net/qq_38230663/article/details/117278307
+
